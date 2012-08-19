@@ -67,6 +67,18 @@ func Websocket(ws *websocket.Conn) {
 		select {
 		case p := <-incoming:
 			p.ID = id
+			if p.X < 0 && p.X != -1 {
+				p.X = 0
+			}
+			if p.Y < 0 && p.Y != -1 {
+				p.Y = 0
+			}
+			if p.X > 100 {
+				p.X = 100
+			}
+			if p.Y > 100 {
+				p.Y = 100
+			}
 			lock.RLock()
 			for _, out := range streams {
 				// Non-blocking
@@ -87,13 +99,16 @@ func main() {
 		io.WriteString(w, `<!DOCTYPE html>
 <html><head>
 <title>some crappy game</title>
-<style>img { -webkit-transition: 1s; -moz-transition: 1s; -o-transition: 1s; transition: 1s; }</style>
+<style>
+img { -webkit-transition: 1s; -moz-transition: 1s; -o-transition: 1s; transition: 1s; }
+html, body { overflow: hidden; }
+</style>
 </head><body>
 <script>
 
 var ws = new WebSocket( 'ws://nightgunner5.is-a-geek.net:9001/ws' );
 
-ws.onmessage = function( e ) {
+ws.addEventListener( 'message', function( e ) {
 	var p = JSON.parse( e.data );
 
 	var el = document.querySelector( '#p' + p.ID );
@@ -114,14 +129,44 @@ ws.onmessage = function( e ) {
 			document.body.removeChild( el );
 		}, 1000 );
 	} else {
-		el.style.left = p.X + 'px';
-		el.style.top = p.Y + 'px';
+		el.style.left = p.X + '%';
+		el.style.top = p.Y + '%';
 	}
-};
+}, false );
 
-onmouseup = function( e ) {
-	ws.send( JSON.stringify( {X: e.x || e.pageX, Y: e.y || e.pageY, ID: 'send'} ) );
-};
+ws.addEventListener( 'open', function() {
+	var delay = 0;	
+
+	addEventListener( 'mousemove', function( e ) {
+		if ( delay ) {
+			e.preventDefault();
+			return;
+		}
+		delay = setTimeout( function() { delay = 0; }, 100 );
+
+		ws.send( JSON.stringify( {
+			X: e.clientX / innerWidth * 100,
+			Y: e.clientY / innerHeight * 100,
+			ID: 'send'
+		} ) );
+		e.preventDefault();
+	}, false );
+
+	addEventListener( 'touchmove', function( e ) {
+		if ( delay ) {
+			e.preventDefault();
+			return;
+		}
+		delay = setTimeout( function() { delay = 0; }, 100 );
+
+		ws.send( JSON.stringify( {
+			X: e.touches[0].clientX / innerWidth * 100,
+			Y: e.touches[0].clientY / innerHeight * 100,
+			ID: 'send'
+		} ) );
+		e.preventDefault();
+	}, false );
+}, false );
 
 </script>
 </body></html>`)
